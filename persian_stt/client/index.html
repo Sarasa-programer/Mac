@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Persian STT</title>
+    <style>
+        body { font-family: Tahoma, Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #status { padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        #transcription { 
+            white-space: pre-wrap; 
+            border: 1px solid #ccc; 
+            padding: 20px; 
+            min-height: 200px; 
+            line-height: 1.6;
+            font-size: 18px;
+        }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>رونویسی درنگ‌ناپذیر فارسی (Real-time Persian STT)</h1>
+    
+    <div id="status" class="disconnected">Disconnected</div>
+    
+    <button id="startBtn">Start Recording</button>
+    <button id="stopBtn" disabled>Stop Recording</button>
+    
+    <h3>Transcription:</h3>
+    <div id="transcription"></div>
+
+    <script>
+        let ws;
+        let audioContext;
+        let processor;
+        let input;
+        let globalStream;
+
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+        const transDiv = document.getElementById('transcription');
+
+        // Connect WebSocket
+        function connectWS() {
+            ws = new WebSocket('ws://localhost:8000/ws/realtime');
+            
+            ws.onopen = () => {
+                statusDiv.innerText = 'Connected to Server';
+                statusDiv.className = 'connected';
+            };
+            
+            ws.onclose = () => {
+                statusDiv.innerText = 'Disconnected';
+                statusDiv.className = 'disconnected';
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'transcription') {
+                    // Append new text
+                    transDiv.innerText += data.text + " ";
+                }
+            };
+        }
+
+        startBtn.onclick = async () => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                connectWS();
+                // Wait for connection? For simplicity, assume fast connect or check in loop.
+            }
+            
+            try {
+                globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                audioContext = new AudioContext({ sampleRate: 16000 });
+                input = audioContext.createMediaStreamSource(globalStream);
+                
+                // Buffer size 4096, 1 channel input, 1 channel output
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                input.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                processor.onaudioprocess = (e) => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        
+                        // Convert Float32 to Int16
+                        const buffer = new ArrayBuffer(inputData.length * 2);
+                        const outputView = new DataView(buffer);
+                        
+                        for (let i = 0; i < inputData.length; i++) {
+                            // Clamp and scale
+                            let s = Math.max(-1, Math.min(1, inputData[i]));
+                            // s < 0 ? s * 0x8000 : s * 0x7FFF
+                            s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                            outputView.setInt16(i * 2, s, true); // Little Endian
+                        }
+                        
+                        ws.send(buffer);
+                    }
+                };
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+            } catch (err) {
+                console.error("Error accessing microphone:", err);
+                alert("Microphone access denied or error occurred.");
+            }
+        };
+
+        stopBtn.onclick = () => {
+            if (globalStream) {
+                globalStream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+            if (ws) {
+                ws.close();
+            }
+            
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        };
+
+        // Initial connect
+        connectWS();
+    </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "timestamp": "Wed Dec 10 06:18:49 2025",
+  "tests": [
+    {
+      "name": "Authentication (Signup + Login)",
+      "status": "success",
+      "time_seconds": 0.7737,
+      "details": "User created and logged in successfully"
+    },
+    {
+      "name": "Get Cases List",
+      "status": "success",
+      "time_seconds": 0.0142,
+      "status_code": 200
+    },
+    {
+      "name": "Upload Audio Case",
+      "status": "success",
+      "time_seconds": 0.0089,
+      "case_id": 8
+    },
+    {
+      "name": "Analyze Case (Groq+Gemini+GPT)",
+      "status": "expected_failure",
+      "time_seconds": 1.004,
+      "status_code": 500,
+      "note": "May fail if API keys are invalid/placeholders"
+    }
+  ]
+}

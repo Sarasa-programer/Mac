@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>STT Diagnostic Client</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        #log { background: #f0f0f0; padding: 10px; border: 1px solid #ccc; height: 300px; overflow-y: scroll; white-space: pre-wrap; }
+        button { padding: 10px 20px; font-size: 16px; margin-right: 10px; cursor: pointer; }
+        .status { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>STT Diagnostic Client</h1>
+    <div>
+        <button id="startBtn">Start Recording</button>
+        <button id="stopBtn" disabled>Stop Recording</button>
+    </div>
+    <div style="margin-top: 10px;">
+        Status: <span id="status" class="status">Disconnected</span>
+    </div>
+    <h3>Logs:</h3>
+    <div id="log"></div>
+
+    <script>
+        const logDiv = document.getElementById('log');
+        const statusSpan = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        let ws;
+        let mediaRecorder;
+        let stream;
+
+        function log(msg) {
+            const time = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${time}] ${msg}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${time}] ${msg}`);
+        }
+
+        async function start() {
+            try {
+                // 1. Connect WebSocket
+                // Change URL if needed. Assuming local debug server on 8001
+                ws = new WebSocket('ws://localhost:8001/ws');
+                ws.binaryType = 'arraybuffer'; // Or 'blob' depending on backend
+
+                ws.onopen = () => {
+                    log("WebSocket Open");
+                    statusSpan.textContent = "Connected";
+                    startMedia();
+                };
+
+                ws.onclose = () => {
+                    log("WebSocket Closed");
+                    statusSpan.textContent = "Disconnected";
+                    stopUI();
+                };
+
+                ws.onerror = (e) => {
+                    log("WebSocket Error: " + e);
+                };
+
+                ws.onmessage = (e) => {
+                    log("Server: " + e.data);
+                }
+
+            } catch (e) {
+                log("Error starting: " + e);
+            }
+        }
+
+        async function startMedia() {
+            try {
+                // 2. Get Media
+                log("Requesting Microphone...");
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const track = stream.getAudioTracks()[0];
+                log(`Stream Active: ${stream.active}, Track Label: ${track.label}, ReadyState: ${track.readyState}`);
+
+                // 3. Setup MediaRecorder
+                const options = { mimeType: 'audio/webm;codecs=opus' };
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    log(`WARNING: ${options.mimeType} not supported. Trying default.`);
+                    mediaRecorder = new MediaRecorder(stream);
+                } else {
+                    mediaRecorder = new MediaRecorder(stream, options);
+                }
+
+                log(`MediaRecorder created. MimeType: ${mediaRecorder.mimeType}`);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        log(`Chunk generated: ${event.data.size} bytes`);
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            // Sending as Blob directly (some backends might need ArrayBuffer)
+                            ws.send(event.data); 
+                            // To send ArrayBuffer: 
+                            // event.data.arrayBuffer().then(buffer => ws.send(buffer));
+                        }
+                    } else {
+                        log("Empty chunk generated");
+                    }
+                };
+
+                mediaRecorder.onstart = () => log("MediaRecorder started");
+                mediaRecorder.onstop = () => log("MediaRecorder stopped");
+                mediaRecorder.onerror = (e) => log("MediaRecorder error: " + e.error);
+
+                // 4. Start with TimeSlice
+                const timeSlice = 250; // 250ms chunks
+                mediaRecorder.start(timeSlice); 
+                log(`MediaRecorder started with timeslice=${timeSlice}ms`);
+
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+            } catch (e) {
+                log("Media Error: " + e);
+                if (ws) ws.close();
+            }
+        }
+
+        function stop() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            if (ws) {
+                ws.close();
+            }
+            stopUI();
+        }
+
+        function stopUI() {
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        }
+
+        startBtn.onclick = start;
+        stopBtn.onclick = stop;
+
+    </script>
+</body>
+</html>
