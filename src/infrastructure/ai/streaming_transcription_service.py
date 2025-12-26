@@ -103,18 +103,20 @@ class StreamingTranscriptionService:
                 # For PCM bytes, we need to wrap them in a WAV header
                 wav_data = self._create_wav_from_pcm(audio_bytes)
                 
-                # Use BytesIO to create a file-like object
-                audio_file = io.BytesIO(wav_data)
+                # Use BytesIO as a file-like object
+                # OpenAI async API accepts tuple format: (filename, file_object_or_bytes, content_type)
+                audio_file_obj = io.BytesIO(wav_data)
                 
+                # Pass as tuple with BytesIO (OpenAI SDK will read from it)
                 transcription = await self.service.audio.transcriptions.create(
-                    file=("audio.wav", audio_file, "audio/wav"),
+                    file=("audio.wav", audio_file_obj, "audio/wav"),
                     model="whisper-1",
                     language=language if language != "fa" else None,  # OpenAI may not support Persian, let it auto-detect
                     prompt=prompt if prompt else None,
                     temperature=0.0,
                     response_format="json"
                 )
-                return transcription.text.strip()
+                return transcription.text.strip() if transcription.text else None
             
             else:
                 logger.error(f"Unsupported provider for streaming: {self.provider}")
