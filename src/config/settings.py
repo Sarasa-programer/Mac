@@ -27,11 +27,11 @@ class Settings(BaseSettings):
     # OpenAI Configuration (for Whisper)
     OPENAI_WHISPER_MODEL: str = "whisper-1"
     
-    # Local Model Configuration (future use)
-    LOCAL_WHISPER_MODEL: str = "large-v3"
-    LOCAL_WHISPER_DEVICE: str = "cuda"  # or "cpu"
-    LOCAL_QWEN_MODEL_PATH: Optional[str] = None
-    LOCAL_QWEN_DEVICE: str = "cuda"
+    # Local Whisper Configuration (New in v1.1)
+    ENABLE_LOCAL_WHISPER: bool = False
+    WHISPER_MODEL_SIZE: str = "large-v3-turbo" # Options: medium, large-v3, large-v3-turbo
+    WHISPER_DEVICE: str = "auto" # Options: auto, cuda, cpu, mps
+    WHISPER_COMPUTE_TYPE: str = "float16" # Options: float16, int8_float16, int8
     
     # Fallback Chain Configuration
     FALLBACK_PROVIDERS: str = "openrouter,openai,groq"  # Comma-separated list
