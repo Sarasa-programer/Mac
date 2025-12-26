@@ -3,7 +3,8 @@ import logging
 import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.infrastructure.ai.buffer_manager import BufferManager
-from src.infrastructure.ai.groq_service import GroqService
+from src.infrastructure.ai.streaming_transcription_service import StreamingTranscriptionService
+from src.config.settings import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -18,7 +19,10 @@ async def websocket_endpoint(websocket: WebSocket):
     
     async def process_audio():
         buffer_manager = BufferManager()
-        groq_service = GroqService()
+        # Use streaming transcription service (configurable via PRIMARY_STT_PROVIDER)
+        transcription_service = StreamingTranscriptionService()
+        provider_name = getattr(settings, 'PRIMARY_STT_PROVIDER', 'groq')
+        logger.info(f"Using transcription provider: {provider_name}")
         last_transcription = ""
         
         try:
@@ -41,14 +45,14 @@ async def websocket_endpoint(websocket: WebSocket):
                         start_time = asyncio.get_running_loop().time()
                         
                         # Process audio without blocking the receive loop
-                        new_text = await groq_service.transcribe(
+                        new_text = await transcription_service.transcribe(
                             window_payload, 
                             prompt=last_transcription
                         )
                         
                         duration = asyncio.get_running_loop().time() - start_time
                         if duration > 2.0:
-                            logger.info(f"Groq transcription took {duration:.2f}s")
+                            logger.info(f"Transcription ({provider_name}) took {duration:.2f}s")
                         
                         if new_text:
                             logger.info(f"Transcribed: {new_text}")
@@ -62,10 +66,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 except Exception as e:
                     logger.error(f"Error in processing audio chunk: {e}")
                     if "403" in str(e) or "Forbidden" in str(e):
-                         logger.critical("🛑 Groq Permission Denied. Stopping audio processing to prevent ban.")
+                         logger.critical(f"🛑 {provider_name.upper()} Permission Denied. Stopping audio processing to prevent ban.")
                          # Optionally inform client
                          try:
-                             await websocket.send_json({"type": "error", "message": "Transcription Service Unavailable (403)"})
+                             await websocket.send_json({"type": "error", "message": f"Transcription Service Unavailable (403) - Provider: {provider_name}"})
                          except:
                              pass
                          break # Stop processing loop
