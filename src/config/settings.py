@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Primary Provider Selection (for migration)
     PRIMARY_PROVIDER: str = "openrouter"  # Options: "groq", "openrouter", "openai", "local"
-    PRIMARY_STT_PROVIDER: str = "openai"  # Options: "groq", "openai", "local"
+    PRIMARY_STT_PROVIDER: str = "groq"  # Options: "groq", "openai", "local" - Groq uses Whisper Large V3 Turbo
     
     # OpenRouter Configuration (for Qwen models)
     OPENROUTER_API_KEY: Optional[str] = None

@@ -8,6 +8,7 @@ __pycache__/
 models/
 .cache/
 .venv/
+venv/
 node_modules/
 uploads/
 *.db
@@ -16,3 +17,10 @@ dist/
 .pytest_cache/
 cloudflared
 cloudflared.tgz
+logs/
+coverage/
+.vscode/
+.idea/
+temp_ssh_key
+temp_ssh_key.pub
+*.log

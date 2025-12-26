@@ -3,47 +3,48 @@
 Project: Pediatric Morning Report AI
 
 ## Clean Architecture Layers
-- Controllers (FastAPI Endpoints): `backend/app/api/v1/endpoints/*.py`
-- Services: `backend/app/services/*.py` (OpenAI, PubMed search helpers)
-- Core: `backend/app/core/*` (config, security, cache)
-- Repositories/Data Access: `backend/app/db/session.py`, `backend/app/models/*.py`
-- Schemas: `backend/app/schemas/*.py` (Pydantic models)
+- Controllers (FastAPI Endpoints): `src/api/v1/endpoints/*.py`
+- Services: `src/infrastructure/ai/*.py` (AI Providers), `app/services/*.py` (Application Logic)
+- Core: `src/core/*` (config, security, interfaces)
+- Repositories/Data Access: `src/infrastructure/db/session.py`, `src/core/domain/*.py`
+- Schemas: `src/api/schemas/*.py` (Pydantic models)
 
 ## Data Flow
-- Client → FastAPI Endpoint → Service Layer → External APIs (OpenAI) → DB Writes → Response
-- Cache-aside: Endpoint queries Redis for cached analysis result; on miss, compute and set.
+- Client → FastAPI Endpoint → AI Service (via Provider Factory) → External API (OpenRouter/OpenAI) or Local Model → Response
+- **Multi-Provider Strategy**:
+    - **LLM**: Primary: OpenRouter (Qwen); Fallback: OpenAI; Legacy: Groq.
+    - **Transcription**: Primary: OpenAI (Whisper); Option: Local Whisper (Medium/Large V3 Turbo).
 
 ## External Integrations
-- OpenAI: GPT-4o for analysis, Whisper for transcription
-- Redis: Cache analysis results (`app/core/cache.py`)
-- PubMed: Article search helper
+- **OpenRouter**: Access to Qwen 2.5 models.
+- **OpenAI**: GPT-4o and Whisper API.
+- **Local Inference**: Faster-Whisper for local transcription.
+- **Redis**: Cache analysis results.
+- **PubMed**: Article search helper.
 
 ## Security & Validation
-- JWT Auth via `python-jose`, `passlib` (see `app/core/security.py`)
-- Role-based access (`require_role` in `auth.py`)
-- Input validation through Pydantic schemas
+- JWT Auth via `python-jose`, `passlib`.
+- Role-based access.
+- Input validation through Pydantic schemas.
 
 ## Design Rationale
-- FastAPI for speed and type-friendly APIs
-- SQLAlchemy for ORM flexibility
-- Redis to reduce LLM costs/latency via caching
-- Dependency overrides to enable robust integration tests
+- **Factory Pattern**: `LLMProviderFactory` and `TranscriptionProviderFactory` allow switching providers without changing business logic.
+- **Feature Flags**: Enable/Disable providers via environment variables for gradual migration.
+- **FastAPI**: Speed and type safety.
 
 ## Scalability Considerations
-- Move from SQLite to PostgreSQL for production
-- Horizontal scaling behind a gateway; stateless app containers
-- Rate limiting and request validation at API gateway
-- Background workers for long-running analyses
+- Horizontal scaling behind a gateway.
+- Background workers for long-running analyses (especially for local inference).
 
 ## Diagram (Mermaid)
 ```mermaid
 flowchart LR
   Client -->|HTTP| Endpoints
-  Endpoints --> Services
-  Services -->|AI| OpenAI
-  Services -->|Cache| Redis
-  Services --> DB[(Database)]
-  Redis --> Endpoints
-  OpenAI --> Services
+  Endpoints --> Factory[Provider Factory]
+  Factory -->|Primary| OpenRouter[OpenRouter (Qwen)]
+  Factory -->|Fallback| OpenAI[OpenAI (GPT/Whisper)]
+  Factory -->|Local| Local[Local Whisper]
+  Factory -->|Legacy| Groq[Groq]
+  Endpoints --> Redis
+  Endpoints --> DB[(Database)]
 ```
-

@@ -56,9 +56,11 @@ class LLMProviderFactory:
         elif provider_name == "openai":
             # OpenAI LLM provider (for GPT models, not just Whisper)
             try:
-                # Could implement OpenAILLMProvider if needed
-                logger.warning("OpenAI LLM provider not yet implemented, using OpenRouter")
-                return LLMProviderFactory.get_provider("openrouter")
+                from src.infrastructure.ai.openai_llm_provider import OpenAILLMProvider
+                return OpenAILLMProvider()
+            except ImportError as e:
+                logger.error(f"OpenAI provider import error: {e}")
+                raise
             except Exception as e:
                 logger.error(f"OpenAI provider error: {e}")
                 raise
