@@ -134,6 +134,15 @@ class StreamingTranscriptionService:
                 return None
                 
         except Exception as e:
-            logger.error(f"Streaming transcription error ({self.provider}): {e}")
+            logger.error(f"Streaming transcription error ({self.provider}): {e}", exc_info=True)
+            # If OpenAI fails and we haven't already fallen back, try Groq as fallback
+            if self.provider == 'openai' and not self.fallback_to_groq:
+                logger.warning("OpenAI transcription failed, attempting fallback to Groq")
+                try:
+                    from src.infrastructure.ai.groq_service import GroqService
+                    groq_service = GroqService()
+                    return await groq_service.transcribe(audio_bytes, prompt=prompt)
+                except Exception as fallback_error:
+                    logger.error(f"Groq fallback also failed: {fallback_error}")
             raise e
 

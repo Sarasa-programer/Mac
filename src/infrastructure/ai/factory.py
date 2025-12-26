@@ -30,6 +30,9 @@ class TranscriptionProviderFactory:
             return OpenAITranscriptionProvider()
         elif provider_name == "gemini":
             return GeminiTranscriptionProvider()
+        elif provider_name == "local":
+            from src.infrastructure.ai.local_whisper_provider import LocalWhisperProvider
+            return LocalWhisperProvider()
         else:
             # Fallback or error
             print(f"⚠️ Unknown provider '{provider_name}', defaulting to Groq")
