@@ -15,7 +15,11 @@ logger = logging.getLogger("MAIN")
 from fastapi.staticfiles import StaticFiles
 import os
 
-app = FastAPI()
+app = FastAPI(
+    title="Pediatric Morning Report AI",
+    version="1.2.0",
+    description="AI-powered pediatric case analysis and transcription system."
+)
 
 # Create static directory if not exists
 os.makedirs("app/static/reports", exist_ok=True)
