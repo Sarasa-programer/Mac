@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     enable_groq: bool = True  # Set to False to disable Groq entirely
     enable_model_abstraction: bool = True
     enable_fallback: bool = True
+    
+    # Local Whisper (New)
+    enable_local_whisper: bool = False
+    whisper_model_size: str = "large-v3-turbo" # Options: medium, large-v3, large-v3-turbo
+    whisper_device: str = "auto" # Options: auto, cuda, cpu, mps
+    whisper_compute_type: str = "float16" # Options: float16, int8_float16, int8
+
 
     # PubMed
     ncbi_email: str = "ali.karimian.poco@gmail.com"

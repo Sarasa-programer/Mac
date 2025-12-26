@@ -19,6 +19,7 @@ class StreamingTranscriptionService:
     
     def __init__(self):
         self.provider = getattr(settings, 'PRIMARY_STT_PROVIDER', 'groq').lower()
+        self.fallback_to_groq = False
         
         # For bytes-based transcription, we use the service directly
         # since TranscriptionProvider interface uses file paths
@@ -29,6 +30,7 @@ class StreamingTranscriptionService:
             # OpenAI Whisper can handle bytes via file-like objects
             self.service = None  # Will be initialized on first use
             self._init_openai_service()
+            # If OpenAI init failed, fallback_to_groq will be True
         else:
             logger.warning(f"Unknown provider '{self.provider}', defaulting to Groq")
             from src.infrastructure.ai.groq_service import GroqService
@@ -39,12 +41,13 @@ class StreamingTranscriptionService:
         """Initialize OpenAI service for streaming transcription."""
         try:
             import openai
-            api_key = settings.OPENAI_API_KEY
+            api_key = getattr(settings, 'OPENAI_API_KEY', None)
             if not api_key:
                 logger.warning("OPENAI_API_KEY not found, falling back to Groq")
                 from src.infrastructure.ai.groq_service import GroqService
                 self.service = GroqService()
                 self.provider = 'groq'
+                self.fallback_to_groq = True
                 return
             
             self.service = openai.AsyncOpenAI(api_key=api_key)
@@ -54,6 +57,13 @@ class StreamingTranscriptionService:
             from src.infrastructure.ai.groq_service import GroqService
             self.service = GroqService()
             self.provider = 'groq'
+            self.fallback_to_groq = True
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI service: {e}, falling back to Groq")
+            from src.infrastructure.ai.groq_service import GroqService
+            self.service = GroqService()
+            self.provider = 'groq'
+            self.fallback_to_groq = True
     
     def _create_wav_from_pcm(self, pcm_data: bytes, sample_rate: int = 16000, channels: int = 1, bits_per_sample: int = 16) -> bytes:
         """
@@ -94,7 +104,8 @@ class StreamingTranscriptionService:
             Transcribed text or None if failed
         """
         try:
-            if self.provider == 'groq':
+            # If we fell back to Groq during init, use Groq
+            if self.fallback_to_groq or self.provider == 'groq':
                 # GroqService.transcribe() handles bytes directly
                 return await self.service.transcribe(audio_bytes, prompt=prompt)
             
