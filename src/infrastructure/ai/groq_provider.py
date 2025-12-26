@@ -1,4 +1,5 @@
 import os
+import httpx
 from groq import AsyncGroq
 from src.core.interfaces.transcription_provider import TranscriptionProvider
 from src.config.settings import settings
@@ -12,7 +13,15 @@ class GroqTranscriptionProvider(TranscriptionProvider):
         self.api_key = settings.GROQ_API_KEY
         if not self.api_key:
             print("⚠️ GROQ_API_KEY not found. Groq provider may fail.")
-        self.client = AsyncGroq(api_key=self.api_key)
+            
+        # Configure httpx client to force IPv4
+        transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0", retries=0)
+        http_client = httpx.AsyncClient(transport=transport, timeout=60.0)
+        
+        self.client = AsyncGroq(
+            api_key=self.api_key,
+            http_client=http_client
+        )
         self.model = settings.GROQ_AUDIO_MODEL # Best for Persian
 
     async def transcribe(self, file_path: str, language: str = "fa") -> str:

@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict # type: ignore
+from typing import Optional, List
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Pediatric Morning Report AI"
@@ -14,15 +15,46 @@ class Settings(BaseSettings):
     GROQ_AUDIO_MODEL: str = "whisper-large-v3-turbo"
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Primary Provider Selection (for migration)
+    PRIMARY_PROVIDER: str = "openrouter"  # Options: "groq", "openrouter", "openai", "local"
+    PRIMARY_STT_PROVIDER: str = "openai"  # Options: "groq", "openai", "local"
+    
+    # OpenRouter Configuration (for Qwen models)
+    OPENROUTER_API_KEY: Optional[str] = None
+    OPENROUTER_MAIN_MODEL: str = "qwen/qwen2.5-72b-instruct:free"
+    OPENROUTER_FAST_MODEL: str = "qwen/qwen2.5-7b-instruct:free"
+    
+    # OpenAI Configuration (for Whisper)
+    OPENAI_WHISPER_MODEL: str = "whisper-1"
+    
+    # Local Model Configuration (future use)
+    LOCAL_WHISPER_MODEL: str = "large-v3"
+    LOCAL_WHISPER_DEVICE: str = "cuda"  # or "cpu"
+    LOCAL_QWEN_MODEL_PATH: Optional[str] = None
+    LOCAL_QWEN_DEVICE: str = "cuda"
+    
+    # Fallback Chain Configuration
+    FALLBACK_PROVIDERS: str = "openrouter,openai,groq"  # Comma-separated list
+    
+    # Feature Flags (for gradual migration)
+    ENABLE_GROQ: bool = True  # Set to False to disable Groq entirely
+    ENABLE_MODEL_ABSTRACTION: bool = True
+    ENABLE_FALLBACK: bool = True
+
     # Audio Settings
     SAMPLE_RATE: int = 16000
     CHANNELS: int = 1
     CHUNK_SIZE: int = 1024  # Bytes per chunk received from client
     
     # Buffer Settings
-    WINDOW_DURATION: float = 4.0  # Seconds of audio to send to Groq
+    WINDOW_DURATION: float = 4.0  # Seconds of audio to send to transcription service
     OVERLAP_DURATION: float = 1.0  # Seconds to overlap between windows
     SILENCE_THRESHOLD: float = 0.5 # Seconds of silence to trigger flush
+    
+    @property
+    def fallback_providers_list(self) -> List[str]:
+        """Parse comma-separated fallback providers into a list."""
+        return [p.strip() for p in self.FALLBACK_PROVIDERS.split(",") if p.strip()]
 
     model_config = SettingsConfigDict(env_file=".env")
 

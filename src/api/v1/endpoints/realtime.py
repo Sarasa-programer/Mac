@@ -61,7 +61,15 @@ async def websocket_endpoint(websocket: WebSocket):
                             })
                 except Exception as e:
                     logger.error(f"Error in processing audio chunk: {e}")
-                    # Don't crash the loop on processing error
+                    if "403" in str(e) or "Forbidden" in str(e):
+                         logger.critical("🛑 Groq Permission Denied. Stopping audio processing to prevent ban.")
+                         # Optionally inform client
+                         try:
+                             await websocket.send_json({"type": "error", "message": "Transcription Service Unavailable (403)"})
+                         except:
+                             pass
+                         break # Stop processing loop
+                    # Don't crash the loop on other processing errors (like network blip)
                     
                 finally:
                     queue.task_done()

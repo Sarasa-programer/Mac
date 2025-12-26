@@ -1,8 +1,12 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Optional, List
 
 class Settings(BaseSettings):
-    # Primary (Groq)
+    # Primary Provider Selection (for migration)
+    primary_provider: str = "openrouter"  # Options: "groq", "openrouter", "openai", "gemini"
+    primary_stt_provider: str = "openai"  # Options: "groq", "openai"
+    
+    # Primary (Groq) - Deprecated, will be phased out
     groq_api_key: Optional[str] = None
     groq_main_model: str = "llama-3.3-70b-versatile"
     groq_fast_model: str = "llama-3.1-8b-instant"
@@ -10,17 +14,24 @@ class Settings(BaseSettings):
     groq_rate_limit: int = 30
     groq_timeout: int = 30
 
-    # Fallback 1 (OpenRouter)
+    # Fallback 1 (OpenRouter) - Primary replacement
     openrouter_api_key: Optional[str] = None
-    openrouter_model: str = "qwen/qwen-2.5-72b-instruct:free"
+    openrouter_model: str = "qwen/qwen2.5-72b-instruct:free"
+    openrouter_fast_model: str = "qwen/qwen2.5-7b-instruct:free"
 
     # Fallback 2 (OpenAI)
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-4o"
+    openai_whisper_model: str = "whisper-1"
 
     # Fallback 3 (Gemini)
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-1.5-pro"
+
+    # Feature Flags (for gradual migration)
+    enable_groq: bool = True  # Set to False to disable Groq entirely
+    enable_model_abstraction: bool = True
+    enable_fallback: bool = True
 
     # PubMed
     ncbi_email: str = "ali.karimian.poco@gmail.com"

@@ -325,9 +325,15 @@ class PubMedService:
         self.date_filter = settings.pubmed_date_filter
         # Increase timeout to 30s to avoid premature failures
         self.timeout = max(settings.pubmed_timeout, 30)
+        # Force IPv4
+        self.transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0", retries=0)
 
     def check_reachability(self) -> bool:
         try:
+            # Basic sync check - requests doesn't support AsyncHTTPTransport easily but uses urllib3
+            # which usually follows system DNS. For sync checks we might not need to force IPv4 
+            # if requests works, but if it fails we might need to look at it.
+            # However, the main issue is with async httpx/uvloop.
             requests.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi", timeout=5)
             return True
         except Exception:
@@ -347,7 +353,7 @@ class PubMedService:
         base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(transport=self.transport, timeout=self.timeout) as client:
                 # 1. Search (Last 5 years)
                 # reldate=365*5, datetype=pdat
                 search_params = {
@@ -479,15 +485,31 @@ class PubMedService:
 
 class UnifiedLLMService:
     def __init__(self):
+        # Configure robust HTTP client with IPv4 forcing
+        self.transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0", retries=0)
+        
         # Clients
-        self.groq_client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+        self.groq_client = None
+        if settings.groq_api_key:
+            self.groq_client = AsyncGroq(
+                api_key=settings.groq_api_key,
+                http_client=httpx.AsyncClient(transport=self.transport, timeout=60.0)
+            )
         
-        self.openrouter_client = AsyncOpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=settings.openrouter_api_key
-        ) if settings.openrouter_api_key else None
+        self.openrouter_client = None
+        if settings.openrouter_api_key:
+            self.openrouter_client = AsyncOpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=settings.openrouter_api_key,
+                http_client=httpx.AsyncClient(transport=self.transport, timeout=60.0)
+            )
         
-        self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+        self.openai_client = None
+        if settings.openai_api_key:
+            self.openai_client = AsyncOpenAI(
+                api_key=settings.openai_api_key,
+                http_client=httpx.AsyncClient(transport=self.transport, timeout=60.0)
+            )
         
         if settings.gemini_api_key:
             genai.configure(api_key=settings.gemini_api_key)

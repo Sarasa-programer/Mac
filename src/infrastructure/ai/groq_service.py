@@ -11,11 +11,21 @@ logger = logging.getLogger(__name__)
 
 class GroqService:
     def __init__(self):
-        # Initialize AsyncGroq with custom http client for pooling/timeouts if needed
-        # By default AsyncGroq uses httpx.AsyncClient
+        # Configure httpx client to force IPv4 by binding to 0.0.0.0
+        # This resolves connection issues in environments with broken IPv6 (e.g. some macOS/Docker setups)
+        transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0", retries=0)
+        http_client = httpx.AsyncClient(transport=transport, timeout=60.0)
+
+        api_key = settings.GROQ_API_KEY
+        if not api_key:
+            logger.error("❌ GROQ_API_KEY is missing in settings!")
+        else:
+            masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "***"
+            logger.info(f"GroqService initialized with Key: {masked_key} | Model: {settings.GROQ_AUDIO_MODEL}")
+
         self.client = AsyncGroq(
-            api_key=settings.GROQ_API_KEY,
-            timeout=60.0, # Increased to 60s to prevent timeouts
+            api_key=api_key,
+            http_client=http_client,
             max_retries=0 # We handle retries with tenacity
         )
         self.model = settings.GROQ_AUDIO_MODEL
@@ -180,4 +190,9 @@ class GroqService:
             
         except Exception as e:
             logger.error(f"Groq Transcription Error: {e}")
+            if hasattr(e, 'status_code'):
+                if e.status_code == 403:
+                    logger.critical("🛑 403 Forbidden: Check API Key and Model Name. Groq may have blocked the request or the model is deprecated.")
+                elif e.status_code == 400:
+                    logger.critical("🛑 400 Bad Request: Check Audio Format or Model Name.")
             raise e
